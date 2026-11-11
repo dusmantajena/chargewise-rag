@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: chargewise-db
+    environment:
+      POSTGRES_DB: ${DB_NAME:-chargewise}
+      POSTGRES_USER: ${DB_USER:-chargewise}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-chargewise}
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-chargewise} -d ${DB_NAME:-chargewise}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:

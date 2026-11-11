@@ -1,0 +1,25 @@
+NEXA Card Scheme - Dispute Rule P40
+Duplicate Processing
+Rulebook version 2026.1. NEXA is a fictional card scheme used for demonstration only.
+
+Section P40.1 Definition
+Reason code P40 applies when a single purchase was processed more than once: the same card, the same merchant and the same amount, posted on the same day or within 3 days, when the cardholder took part in only one purchase.
+
+Section P40.2 Eligibility conditions
+P40 may be raised only when all of the following are true:
+- Two or more transactions share the card, merchant and amount.
+- The transactions were processed within 3 calendar days of each other.
+- The cardholder confirms that only one purchase was made.
+
+Section P40.3 Invalid uses
+P40 must not be raised when any of the following apply:
+- The transactions represent separate purchases and the cardholder received goods or services for each.
+- The charges are separate instalments or recurring payments agreed with the merchant.
+- The merchant has already refunded the duplicate transaction.
+
+Section P40.4 Required issuer evidence
+- References of both the original and the duplicate transaction
+- Cardholder statement confirming that only one purchase was made
+
+Section P40.5 Time limit
+The dispute must be raised within 120 calendar days of the processing date of the duplicate transaction.

@@ -1,0 +1,27 @@
+NEXA Card Scheme - Dispute Rule Q30
+Not as Described or Defective
+Rulebook version 2026.1. NEXA is a fictional card scheme used for demonstration only.
+
+Section Q30.1 Definition
+Reason code Q30 applies when the goods were received but differ significantly from the merchant's description, or arrived damaged or defective.
+
+Section Q30.2 Eligibility conditions
+Q30 may be raised only when all of the following are true:
+- The goods were delivered to the cardholder.
+- The goods differ materially from the description shown at the time of purchase, or are damaged or defective.
+- The cardholder returned the goods, or attempted to return them, following the merchant's return instructions.
+
+Section Q30.3 Invalid uses
+Q30 must not be raised when any of the following apply:
+- The cardholder simply changed their mind or no longer wants the goods.
+- The merchant has already refunded the transaction.
+- The cardholder did not return or attempt to return the goods.
+
+Section Q30.4 Required issuer evidence
+- Cardholder statement explaining how the goods differ from the description
+- Copy of the merchant's product description or listing
+- Proof of return or attempted return, such as a tracking reference
+- Photographs of the goods where available
+
+Section Q30.5 Time limit
+The dispute must be raised within 120 calendar days of the date the goods were received.

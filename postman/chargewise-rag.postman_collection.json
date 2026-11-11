@@ -1,0 +1,236 @@
+{
+  "info": {
+    "name": "Chargewise RAG",
+    "description": "Phase 1 API: load fictional scheme rules and analyse card disputes.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080/api/v1" },
+    { "key": "documentId", "value": "" },
+    { "key": "disputeId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Documents",
+      "item": [
+        {
+          "name": "Upload rules document",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 202', () => pm.response.to.have.status(202));",
+                  "pm.collectionVariables.set('documentId', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "file", "type": "file", "src": [], "description": "Select a PDF, DOCX or TXT rules file" },
+                { "key": "reasonCategory", "value": "GOODS_NOT_RECEIVED", "type": "text", "description": "FRAUD_NO_AUTHORISATION, GOODS_NOT_RECEIVED, NOT_AS_DESCRIBED, DUPLICATE_PROCESSING or CREDIT_NOT_PROCESSED" }
+              ]
+            },
+            "url": "{{baseUrl}}/documents"
+          }
+        },
+        {
+          "name": "List documents",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/documents?page=0&size=20&sort=createdAt,desc",
+              "host": ["{{baseUrl}}"],
+              "path": ["documents"],
+              "query": [
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "20" },
+                { "key": "sort", "value": "createdAt,desc" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete document",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/documents/{{documentId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Disputes",
+      "item": [
+        {
+          "name": "Analyse - parcel never arrived",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Category is GOODS_NOT_RECEIVED', () => pm.expect(pm.response.json().category).to.eql('GOODS_NOT_RECEIVED'));",
+                  "pm.collectionVariables.set('disputeId', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Customer says the parcel never arrived. The delivery date was three weeks ago and the merchant has not replied to two emails.\"\n}"
+            },
+            "url": "{{baseUrl}}/disputes/analyse"
+          }
+        },
+        {
+          "name": "Analyse - charged twice",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Category is DUPLICATE_PROCESSING', () => pm.expect(pm.response.json().category).to.eql('DUPLICATE_PROCESSING'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Customer paid once at the supermarket but was charged the same amount twice, two minutes apart.\"\n}"
+            },
+            "url": "{{baseUrl}}/disputes/analyse"
+          }
+        },
+        {
+          "name": "Analyse - unauthorised online purchase",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Category is FRAUD_NO_AUTHORISATION', () => pm.expect(pm.response.json().category).to.eql('FRAUD_NO_AUTHORISATION'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Customer did not make an online laptop purchase. They still have the card, reported it as fraud and the card has been blocked.\"\n}"
+            },
+            "url": "{{baseUrl}}/disputes/analyse"
+          }
+        },
+        {
+          "name": "Analyse - unrelated complaint (422)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 422', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Customer is unhappy that the bank branch closed early on Saturday.\"\n}"
+            },
+            "url": "{{baseUrl}}/disputes/analyse"
+          }
+        },
+        {
+          "name": "Analyse - invalid request (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"\"\n}"
+            },
+            "url": "{{baseUrl}}/disputes/analyse"
+          }
+        },
+        {
+          "name": "Get analysis result",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/disputes/{{disputeId}}"
+          }
+        }
+      ]
+    }
+  ]
+}

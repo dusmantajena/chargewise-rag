@@ -1,0 +1,26 @@
+NEXA Card Scheme - Dispute Rule G20
+Goods or Services Not Received
+Rulebook version 2026.1. NEXA is a fictional card scheme used for demonstration only.
+
+Section G20.1 Definition
+Reason code G20 applies when the cardholder paid for goods or services that were not delivered or provided by the agreed date, or within 30 calendar days of the transaction when no date was agreed.
+
+Section G20.2 Eligibility conditions
+G20 may be raised only when all of the following are true:
+- The expected delivery or service date has passed.
+- The cardholder attempted to contact the merchant to resolve the problem and allowed at least 7 days for a reply.
+- The cardholder did not cancel the order before the expected delivery date.
+
+Section G20.3 Invalid uses
+G20 must not be raised when any of the following apply:
+- The merchant can show proof of delivery to the cardholder's address, such as a signed courier receipt or a confirmed delivery status.
+- The cardholder refused delivery without a valid reason.
+- The dispute is raised before the expected delivery date.
+
+Section G20.4 Required issuer evidence
+- Cardholder statement describing the order and the expected delivery date
+- Evidence that the cardholder tried to contact the merchant, with dates
+- Order confirmation or receipt showing what was purchased
+
+Section G20.5 Time limit
+The dispute must be raised within 120 calendar days of the expected delivery date, and no later than 540 days after the transaction date.

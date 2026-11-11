@@ -1,0 +1,62 @@
+spring:
+  application:
+    name: chargewise-rag
+  config:
+    import: optional:file:.env[.properties]
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/chargewise}
+    username: ${DB_USER:chargewise}
+    password: ${DB_PASSWORD:chargewise}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+  mvc:
+    problemdetails:
+      enabled: true
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY}
+      chat:
+        model: ${OPENAI_CHAT_MODEL:gpt-4.1-mini}
+      embedding:
+        model: ${OPENAI_EMBEDDING_MODEL:text-embedding-3-small}
+    vectorstore:
+      pgvector:
+        initialize-schema: false
+        index-type: HNSW
+        distance-type: COSINE_DISTANCE
+        dimensions: 1536
+
+chargewise:
+  ingestion:
+    chunk-size: 120
+    min-chunk-size-chars: 80
+  retrieval:
+    top-k: 5
+    similarity-threshold: 0.4
+    category-context-top-k: 10
+  seed:
+    enabled: ${SEED_ENABLED:true}
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
