@@ -1,0 +1,25 @@
+NEXA Card Scheme - Dispute Rule C50
+Credit Not Processed
+Rulebook version 2026.1. NEXA is a fictional card scheme used for demonstration only.
+
+Section C50.1 Definition
+Reason code C50 applies when the merchant agreed to a refund, or accepted a cancellation within its published cancellation policy, but the credit did not reach the cardholder's account.
+
+Section C50.2 Eligibility conditions
+C50 may be raised only when all of the following are true:
+- The merchant issued a credit voucher, a refund confirmation or a cancellation number, or the cancellation was made within the merchant's published policy.
+- At least 15 calendar days have passed since the refund was promised or the cancellation was made.
+- No credit for the transaction has posted to the cardholder's account.
+
+Section C50.3 Invalid uses
+C50 must not be raised when any of the following apply:
+- A refund for the transaction has already posted to the account.
+- The cancellation was made outside the merchant's published policy and the merchant did not agree to a refund.
+
+Section C50.4 Required issuer evidence
+- Credit voucher, refund confirmation or cancellation confirmation from the merchant
+- Cancellation number or date of cancellation
+- Cardholder statement confirming that no credit has been received
+
+Section C50.5 Time limit
+The dispute must be raised within 120 calendar days of the date on the credit voucher or of the cancellation.

@@ -1,0 +1,5 @@
+DISPUTE DESCRIPTION
+{description}
+
+SCHEME RULES
+{rules}

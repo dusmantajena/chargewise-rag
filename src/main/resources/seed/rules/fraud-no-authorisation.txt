@@ -1,0 +1,28 @@
+NEXA Card Scheme - Dispute Rule F10
+Fraud: No Cardholder Authorisation
+Rulebook version 2026.1. NEXA is a fictional card scheme used for demonstration only.
+
+Section F10.1 Definition
+Reason code F10 applies when the cardholder states that they did not authorise or take part in a card-absent transaction while the card remained in their possession.
+
+Section F10.2 Eligibility conditions
+F10 may be raised only when all of the following are true:
+- The transaction was card-absent: e-commerce, mail order or telephone order.
+- The cardholder has confirmed in writing that they did not authorise the transaction.
+- The issuer reported the transaction to the NEXA fraud reporting service before raising the dispute.
+- The card was blocked or replaced after the fraud was reported.
+
+Section F10.3 Invalid uses
+F10 must not be raised when any of the following apply:
+- The transaction was authenticated with 3-D Secure and the authentication succeeded. Liability has shifted to the issuer and the dispute must be declined.
+- The transaction was card-present with chip or contactless entry.
+- The cardholder disputed an earlier transaction with the same merchant under F10 within 120 days and continued to transact with that merchant.
+
+Section F10.4 Required issuer evidence
+- Signed cardholder declaration of non-authorisation
+- Fraud report reference from the NEXA fraud reporting service
+- Confirmation that the card was blocked or replaced
+- Transaction record showing card-absent entry mode and no successful 3-D Secure authentication
+
+Section F10.5 Time limit
+The dispute must be raised within 120 calendar days of the transaction processing date.

@@ -1,0 +1,49 @@
+@baseUrl = http://localhost:8080/api/v1
+
+### List documents
+GET {{baseUrl}}/documents?page=0&size=20
+
+### Upload a rules document
+POST {{baseUrl}}/documents
+Content-Type: multipart/form-data; boundary=boundary
+
+--boundary
+Content-Disposition: form-data; name="file"; filename="goods-not-received-v2.txt"
+Content-Type: text/plain
+
+< ./src/main/resources/seed/rules/goods-not-received.txt
+--boundary
+Content-Disposition: form-data; name="reasonCategory"
+
+GOODS_NOT_RECEIVED
+--boundary--
+
+### Delete a document
+DELETE {{baseUrl}}/documents/{{documentId}}
+
+### Analyse: parcel never arrived (expect GOODS_NOT_RECEIVED)
+POST {{baseUrl}}/disputes/analyse
+Content-Type: application/json
+
+{
+  "description": "Customer says the parcel never arrived. The delivery date was three weeks ago and the merchant has not replied to two emails."
+}
+
+### Analyse: charged twice (expect DUPLICATE_PROCESSING)
+POST {{baseUrl}}/disputes/analyse
+Content-Type: application/json
+
+{
+  "description": "Customer paid once at the supermarket but was charged the same amount twice, two minutes apart."
+}
+
+### Analyse: unrelated complaint (expect 422)
+POST {{baseUrl}}/disputes/analyse
+Content-Type: application/json
+
+{
+  "description": "Customer is unhappy that the bank branch closed early on Saturday."
+}
+
+### Get a stored analysis
+GET {{baseUrl}}/disputes/{{disputeId}}
