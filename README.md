@@ -110,7 +110,7 @@ sequenceDiagram
 | Database | PostgreSQL 17 with pgvector (HNSW index) |
 | Migrations | Flyway |
 | API documentation | springdoc-openapi (Swagger UI) |
-| Testing | JUnit 5, Testcontainers |
+| Testing | JUnit 5, Mockito, Testcontainers, WireMock, JaCoCo |
 | Containers | Docker Compose |
 
 ## Getting started
@@ -299,6 +299,7 @@ Suggested order: log in as admin and agent, list documents, analyse a few disput
 - **Resilience4j core instead of a starter.** There is no Resilience4j starter for Spring Boot 4 yet, so the retry, circuit breaker and time limiter are built as beans and composed in one `OpenAiResilience` component. Retry wraps the circuit breaker, which wraps the time limiter, so each attempt is timed and counted. Business errors such as `422` are never retried and never open the circuit.
 - **Idempotency claimed atomically in the database.** The key is claimed with one `INSERT ... ON CONFLICT` before the OpenAI call, so two concurrent requests with the same key cannot both run. The request body is stored as a SHA-256 hash to detect a key reused with different content. If the analysis fails, the claim is released so the client can retry; a claim left behind by a crash expires after 5 minutes.
 - **Rate limit after authentication.** The Bucket4j check runs as a Spring MVC interceptor, after the JWT filter, so limits are per user rather than per IP. Buckets are kept in memory, which suits a single instance; several instances would share buckets through Bucket4j's Redis or PostgreSQL integration.
+- **Tests need no API key.** WireMock stands in for the OpenAI chat API and a fixed embedding model replaces OpenAI embeddings, so the full suite runs offline in CI while still going through the real HTTP client, Spring Security and PostgreSQL.
 - **JWT without an extra library.** Tokens are issued and validated with Spring Security's built-in Nimbus support. The issuer and expiry are checked on every request, and roles come from a `roles` claim.
 - **Security errors go through the same handler.** The authentication entry point and access-denied handler delegate to the global exception handler, so `401` and `403` have the same `ProblemDetail` shape and correlation ID as every other error.
 - **Consistent errors.** One `@RestControllerAdvice` turns every error, including Spring's own, into a `ProblemDetail` with a correlation ID. Unexpected errors are logged in full but return no internal details.
@@ -332,4 +333,11 @@ src/main/resources/
 mvn verify
 ```
 
-Tests run against a real pgvector container through Testcontainers, so Docker must be running.
+This runs every test and writes a JaCoCo coverage report to `target/site/jacoco/index.html`. Docker must be running; no OpenAI API key is needed.
+
+| Level | What is tested | Tools |
+|---|---|---|
+| Unit | Dispute analysis rules and refusals, idempotency decisions, retry / circuit breaker / timeout behaviour, rate limiting, citation excerpts | JUnit 5, Mockito, AssertJ |
+| Integration | The full API over HTTP: login, role checks, upload and transactional delete, seed ingestion, analysis, `422` refusal, idempotent replay and `409`, `503` after retries, validation errors | Spring Boot Test, MockMvc, Testcontainers (pgvector), WireMock |
+
+Integration tests run against a real PostgreSQL with pgvector in a container. The OpenAI chat API is replaced by WireMock over HTTP, so the real client, retries and error mapping are exercised. Embeddings come from a deterministic in-memory model, so similarity scores, and therefore the refusal guard, behave the same on every run.

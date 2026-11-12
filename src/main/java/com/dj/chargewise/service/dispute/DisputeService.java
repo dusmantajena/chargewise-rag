@@ -72,7 +72,7 @@ public class DisputeService {
                 description,
                 recommendation.category(),
                 recommendation.requiredEvidenceOrEmpty(),
-                recommendation.explanation(),
+                withoutSourceLabels(recommendation.explanation()),
                 citations);
 
         return DisputeResponse.from(disputeRepository.save(dispute));
@@ -106,5 +106,10 @@ public class DisputeService {
         return recommendation != null && StringUtils.hasText(recommendation.explanation())
                 ? recommendation.explanation()
                 : MODEL_DECLINED;
+    }
+
+    private static String withoutSourceLabels(String text) {
+        return text.replaceAll("\\s*(?:and\\s+)?(?:section\\s+|source\\s+)?\\[?\\bS\\d+\\b\\]?", "")
+                .replaceAll("\\s+([.,])", "$1");
     }
 }
