@@ -13,7 +13,7 @@
 
     <groupId>com.dj</groupId>
     <artifactId>chargewise-rag</artifactId>
-    <version>0.2.0</version>
+    <version>0.3.0</version>
     <name>chargewise-rag</name>
     <description>AI-powered chargeback and dispute resolution copilot</description>
 
@@ -61,6 +61,18 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-oauth2-resource-server</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-oauth2-jose</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>

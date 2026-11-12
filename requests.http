@@ -1,10 +1,32 @@
 @baseUrl = http://localhost:8080/api/v1
 
+### Log in as admin (manages documents)
+# @name adminLogin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "password": "admin-change-me"
+}
+
+### Log in as agent (analyses disputes)
+# @name agentLogin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "username": "agent",
+  "password": "agent-change-me"
+}
+
 ### List documents
 GET {{baseUrl}}/documents?page=0&size=20
+Authorization: Bearer {{adminLogin.response.body.accessToken}}
 
 ### Upload a rules document
 POST {{baseUrl}}/documents
+Authorization: Bearer {{adminLogin.response.body.accessToken}}
 Content-Type: multipart/form-data; boundary=boundary
 
 --boundary
@@ -20,9 +42,12 @@ GOODS_NOT_RECEIVED
 
 ### Delete a document
 DELETE {{baseUrl}}/documents/{{documentId}}
+Authorization: Bearer {{adminLogin.response.body.accessToken}}
 
 ### Analyse: parcel never arrived (expect GOODS_NOT_RECEIVED)
+# @name analyse
 POST {{baseUrl}}/disputes/analyse
+Authorization: Bearer {{agentLogin.response.body.accessToken}}
 Content-Type: application/json
 
 {
@@ -31,6 +56,7 @@ Content-Type: application/json
 
 ### Analyse: charged twice (expect DUPLICATE_PROCESSING)
 POST {{baseUrl}}/disputes/analyse
+Authorization: Bearer {{agentLogin.response.body.accessToken}}
 Content-Type: application/json
 
 {
@@ -39,11 +65,30 @@ Content-Type: application/json
 
 ### Analyse: unrelated complaint (expect 422)
 POST {{baseUrl}}/disputes/analyse
+Authorization: Bearer {{agentLogin.response.body.accessToken}}
 Content-Type: application/json
 
 {
   "description": "Customer is unhappy that the bank branch closed early on Saturday."
 }
 
+### Analyse without a token (expect 401)
+POST {{baseUrl}}/disputes/analyse
+Content-Type: application/json
+
+{
+  "description": "Customer says the parcel never arrived."
+}
+
+### Analyse with the admin token (expect 403)
+POST {{baseUrl}}/disputes/analyse
+Authorization: Bearer {{adminLogin.response.body.accessToken}}
+Content-Type: application/json
+
+{
+  "description": "Customer says the parcel never arrived."
+}
+
 ### Get a stored analysis
-GET {{baseUrl}}/disputes/{{disputeId}}
+GET {{baseUrl}}/disputes/{{analyse.response.body.id}}
+Authorization: Bearer {{agentLogin.response.body.accessToken}}

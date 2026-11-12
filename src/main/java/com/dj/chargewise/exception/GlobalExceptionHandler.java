@@ -12,6 +12,10 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.oauth2.server.resource.InvalidBearerTokenException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -39,6 +43,27 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         problem.setTitle(ex.getTitle());
         ex.getProperties().forEach(problem::setProperty);
         return handleExceptionInternal(ex, problem, new HttpHeaders(), ex.getStatus(), request);
+    }
+
+    @ExceptionHandler(AuthenticationException.class)
+    ResponseEntity<Object> handleAuthenticationException(AuthenticationException ex, WebRequest request) {
+        log.warn("Authentication failed: {}", ex.getMessage());
+
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, authenticationDetail(ex));
+        problem.setTitle("Unauthorized");
+        HttpHeaders headers = new HttpHeaders();
+        headers.set(HttpHeaders.WWW_AUTHENTICATE, "Bearer");
+        return handleExceptionInternal(ex, problem, headers, HttpStatus.UNAUTHORIZED, request);
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    ResponseEntity<Object> handleAccessDeniedException(AccessDeniedException ex, WebRequest request) {
+        log.warn("Access denied: {}", ex.getMessage());
+
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN,
+                "You do not have permission to access this resource.");
+        problem.setTitle("Forbidden");
+        return handleExceptionInternal(ex, problem, new HttpHeaders(), HttpStatus.FORBIDDEN, request);
     }
 
     @ExceptionHandler(Exception.class)
@@ -92,6 +117,16 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             problem.setProperty("correlationId", MDC.get(CorrelationIdFilter.MDC_KEY));
         }
         return super.createResponseEntity(body, headers, statusCode, request);
+    }
+
+    private static String authenticationDetail(AuthenticationException ex) {
+        if (ex instanceof BadCredentialsException) {
+            return "Invalid username or password.";
+        }
+        if (ex instanceof InvalidBearerTokenException) {
+            return "The access token is invalid or has expired.";
+        }
+        return "Authentication is required to access this resource.";
     }
 
     private static FieldErrorResponse toFieldError(FieldError error) {

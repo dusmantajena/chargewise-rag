@@ -9,6 +9,8 @@ import com.dj.chargewise.exception.ResourceNotFoundException;
 import com.dj.chargewise.model.DisputeRecommendation;
 import com.dj.chargewise.model.RetrievedChunk;
 import com.dj.chargewise.repository.DisputeRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -21,6 +23,8 @@ import java.util.UUID;
 
 @Service
 public class DisputeService {
+
+    private static final Logger log = LoggerFactory.getLogger(DisputeService.class);
 
     private static final String NO_MATCHING_RULES =
             "No rules match this dispute closely enough to make a recommendation.";
@@ -55,6 +59,8 @@ public class DisputeService {
 
         List<DisputeCitation> citations = resolveCitations(recommendation.sourcesOrEmpty(), sources);
         if (citations.isEmpty()) {
+            log.warn("Model sources {} match none of the retrieved labels {}",
+                    recommendation.sourcesOrEmpty(), sources.keySet());
             throw new InsufficientContextException(NO_CITATIONS);
         }
 

@@ -25,6 +25,10 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1/disputes")
 @Tag(name = "Disputes", description = "Analyse card disputes against the loaded rules")
+@ApiResponse(responseCode = "401", description = "Missing, invalid or expired access token",
+        content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
+@ApiResponse(responseCode = "403", description = "Requires the AGENT role",
+        content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
 public class DisputeController {
 
     private final DisputeService disputeService;
