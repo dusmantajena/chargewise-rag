@@ -32,4 +32,8 @@ public abstract class ChargewiseException extends RuntimeException {
     public Map<String, Object> getProperties() {
         return Map.of();
     }
+
+    public Map<String, String> getHeaders() {
+        return Map.of();
+    }
 }

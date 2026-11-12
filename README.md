@@ -20,6 +20,11 @@ All card schemes and rules in this project are fictional.
 - Two roles: `ADMIN` manages rule documents, `AGENT` analyses disputes
 - `401` and `403` are returned as `ProblemDetail` with a correlation ID, like every other error
 
+**Resilience**
+- Every OpenAI call (embeddings and chat) runs through Resilience4j: a 30-second time limit, up to 3 attempts with exponential backoff, and a circuit breaker
+- When OpenAI is down or slow, the API returns `503` with a `Retry-After` header instead of hanging or failing with a `500`
+- After repeated failures the circuit opens and requests fail fast for 30 seconds without calling OpenAI
+
 **Analyse a dispute**
 - The dispute description is matched against rule chunks with pgvector similarity search
 - Context expansion: once the best-matching category is known, its remaining chunks are fetched with a metadata filter, so the rule's evidence section always reaches the model
@@ -95,6 +100,7 @@ sequenceDiagram
 | AI | Spring AI 2.0: OpenAI chat and embeddings, ChatClient, structured output, PgVectorStore |
 | Document parsing | Apache Tika, TokenTextSplitter |
 | Security | Spring Security, JWT (Nimbus, HS256), BCrypt |
+| Resilience | Resilience4j (retry, circuit breaker, time limiter) |
 | Database | PostgreSQL 17 with pgvector (HNSW index) |
 | Migrations | Flyway |
 | API documentation | springdoc-openapi (Swagger UI) |
@@ -140,7 +146,7 @@ All settings are read from `.env` or environment variables. No secrets are store
 | `ADMIN_PASSWORD` | none | Password for the `admin` user (required) |
 | `AGENT_PASSWORD` | none | Password for the `agent` user (required) |
 
-Retrieval and chunking are tuned in `application.yml` under `chargewise.*`: chunk size, top-k, similarity threshold and category context size.
+Retrieval, chunking and resilience are tuned in `application.yml` under `chargewise.*`: chunk size, top-k, similarity threshold, category context size, OpenAI timeout, retry attempts and circuit breaker thresholds.
 
 ## API
 
@@ -189,6 +195,7 @@ Errors are returned as RFC 9457 `ProblemDetail`, each with a `correlationId` and
 | `413` | File larger than 10MB |
 | `422` | No rules match the dispute closely enough, or the rules don't support an answer |
 | `500` | Unexpected error (no internal details exposed) |
+| `503` | OpenAI is unavailable, timed out or the circuit is open (with a `Retry-After` header) |
 
 ### Example
 
@@ -269,6 +276,7 @@ Suggested order: log in as admin and agent, list documents, analyse a few disput
 - **Context expansion by metadata.** Small chunks give precise matches but can separate a rule's conditions from its evidence list. A second search filtered on `reasonCategory` brings the whole rule into context.
 - **Transactional delete.** Document rows and vector rows are removed in one database transaction, so a failed delete never leaves vectors that can still be retrieved.
 - **Asynchronous ingestion on virtual threads.** Uploads return `202` immediately and parsing and embedding run in the background. The correlation ID is copied to the background thread, so ingestion logs can be traced back to the upload request.
+- **Resilience4j core instead of a starter.** There is no Resilience4j starter for Spring Boot 4 yet, so the retry, circuit breaker and time limiter are built as beans and composed in one `OpenAiResilience` component. Retry wraps the circuit breaker, which wraps the time limiter, so each attempt is timed and counted. Business errors such as `422` are never retried and never open the circuit.
 - **JWT without an extra library.** Tokens are issued and validated with Spring Security's built-in Nimbus support. The issuer and expiry are checked on every request, and roles come from a `roles` claim.
 - **Security errors go through the same handler.** The authentication entry point and access-denied handler delegate to the global exception handler, so `401` and `403` have the same `ProblemDetail` shape and correlation ID as every other error.
 - **Consistent errors.** One `@RestControllerAdvice` turns every error, including Spring's own, into a `ProblemDetail` with a correlation ID. Unexpected errors are logged in full but return no internal details.
@@ -278,9 +286,9 @@ Suggested order: log in as admin and agent, list documents, analyse a few disput
 
 ```
 src/main/java/com/dj/chargewise/
-├── config/        Spring AI, async, OpenAPI and application properties
+├── config/        Spring AI, async, OpenAPI, Resilience4j and application properties
 ├── controller/    REST controllers
-├── service/
+├── service/       OpenAI resilience wrapper
 │   ├── ingestion/ upload, text extraction, async ingestion, seed data
 │   └── dispute/   retrieval, LLM advisor, analysis
 ├── repository/    JPA repositories and vector chunk deletion
@@ -303,14 +311,3 @@ mvn verify
 ```
 
 Tests run against a real pgvector container through Testcontainers, so Docker must be running.
-
-## Roadmap
-
-Phase 2 adds production-ready features:
-
-- Resilience4j retry, circuit breaker and time limiter on OpenAI calls
-- Idempotency-Key support on dispute analysis
-- Rate limiting with Bucket4j
-- Micrometer metrics, Prometheus endpoint and structured JSON logs
-- WireMock-based integration tests, so CI needs no API key
-- Multi-stage Dockerfile and GitHub Actions CI

@@ -4,6 +4,7 @@ import com.dj.chargewise.entity.KnowledgeDocument;
 import com.dj.chargewise.exception.IngestionFailedException;
 import com.dj.chargewise.exception.ResourceNotFoundException;
 import com.dj.chargewise.repository.KnowledgeDocumentRepository;
+import com.dj.chargewise.service.OpenAiResilience;
 import com.dj.chargewise.util.MetadataKeys;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,13 +27,16 @@ public class IngestionPipeline {
     private final DocumentTextExtractor textExtractor;
     private final TokenTextSplitter splitter;
     private final VectorStore vectorStore;
+    private final OpenAiResilience openAiResilience;
 
     public IngestionPipeline(KnowledgeDocumentRepository documentRepository, DocumentTextExtractor textExtractor,
-                             TokenTextSplitter splitter, VectorStore vectorStore) {
+                             TokenTextSplitter splitter, VectorStore vectorStore,
+                             OpenAiResilience openAiResilience) {
         this.documentRepository = documentRepository;
         this.textExtractor = textExtractor;
         this.splitter = splitter;
         this.vectorStore = vectorStore;
+        this.openAiResilience = openAiResilience;
     }
 
     @Async
@@ -54,7 +58,7 @@ public class IngestionPipeline {
                             MetadataKeys.FILENAME, document.getFilename()))
                     .build()));
 
-            vectorStore.add(chunks);
+            openAiResilience.run(() -> vectorStore.add(chunks));
             document.markCompleted(chunks.size());
             log.info("Ingested {} into {} chunks", document.getFilename(), chunks.size());
         } catch (Exception ex) {

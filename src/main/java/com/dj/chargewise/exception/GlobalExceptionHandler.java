@@ -42,7 +42,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(ex.getStatus(), ex.getMessage());
         problem.setTitle(ex.getTitle());
         ex.getProperties().forEach(problem::setProperty);
-        return handleExceptionInternal(ex, problem, new HttpHeaders(), ex.getStatus(), request);
+        HttpHeaders headers = new HttpHeaders();
+        ex.getHeaders().forEach(headers::set);
+        return handleExceptionInternal(ex, problem, headers, ex.getStatus(), request);
     }
 
     @ExceptionHandler(AuthenticationException.class)
