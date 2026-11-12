@@ -10,7 +10,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(properties = {
         "spring.ai.openai.api-key=test-key",
-        "chargewise.seed.enabled=false"
+        "chargewise.seed.enabled=false",
+        "chargewise.security.jwt-secret=test-secret-that-is-at-least-32-characters-long",
+        "ADMIN_PASSWORD=admin-test",
+        "AGENT_PASSWORD=agent-test"
 })
 @Import(TestcontainersConfiguration.class)
 class ChargewiseApplicationTests {

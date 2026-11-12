@@ -31,6 +31,10 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1/documents")
 @Tag(name = "Documents", description = "Load and manage scheme rule documents")
+@ApiResponse(responseCode = "401", description = "Missing, invalid or expired access token",
+        content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
+@ApiResponse(responseCode = "403", description = "Requires the ADMIN role",
+        content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
 public class DocumentController {
 
     private final DocumentService documentService;

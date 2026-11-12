@@ -15,6 +15,11 @@ All card schemes and rules in this project are fictional.
 - Deleting a document removes its row and all its chunk embeddings in one transaction, so no orphaned vectors stay retrievable
 - Five fictional rule files, one per category, are loaded on first start
 
+**Security**
+- Stateless JWT authentication with Spring Security's OAuth2 resource server (HS256, 1-hour tokens)
+- Two roles: `ADMIN` manages rule documents, `AGENT` analyses disputes
+- `401` and `403` are returned as `ProblemDetail` with a correlation ID, like every other error
+
 **Analyse a dispute**
 - The dispute description is matched against rule chunks with pgvector similarity search
 - Context expansion: once the best-matching category is known, its remaining chunks are fetched with a metadata filter, so the rule's evidence section always reaches the model
@@ -89,6 +94,7 @@ sequenceDiagram
 | Framework | Spring Boot 4.1 (Web MVC, Validation, Data JPA, Actuator) |
 | AI | Spring AI 2.0: OpenAI chat and embeddings, ChatClient, structured output, PgVectorStore |
 | Document parsing | Apache Tika, TokenTextSplitter |
+| Security | Spring Security, JWT (Nimbus, HS256), BCrypt |
 | Database | PostgreSQL 17 with pgvector (HNSW index) |
 | Migrations | Flyway |
 | API documentation | springdoc-openapi (Swagger UI) |
@@ -130,18 +136,44 @@ All settings are read from `.env` or environment variables. No secrets are store
 | `DB_URL` | `jdbc:postgresql://localhost:5432/chargewise` | Database URL |
 | `DB_USER` / `DB_PASSWORD` | `chargewise` | Database credentials |
 | `SEED_ENABLED` | `true` | Load the fictional rules on first start |
+| `JWT_SECRET` | none | Signing key for access tokens, at least 32 characters (required) |
+| `ADMIN_PASSWORD` | none | Password for the `admin` user (required) |
+| `AGENT_PASSWORD` | none | Password for the `agent` user (required) |
 
 Retrieval and chunking are tuned in `application.yml` under `chargewise.*`: chunk size, top-k, similarity threshold and category context size.
 
 ## API
 
-| Method | Endpoint | Purpose |
-|---|---|---|
-| POST | `/api/v1/documents` | Upload a rules document (multipart), returns `202` |
-| GET | `/api/v1/documents` | List documents and ingestion status, paginated |
-| DELETE | `/api/v1/documents/{id}` | Delete a document and its vectors, returns `204` |
-| POST | `/api/v1/disputes/analyse` | Analyse a dispute, returns `201` |
-| GET | `/api/v1/disputes/{id}` | Get a stored analysis result |
+| Method | Endpoint | Role | Purpose |
+|---|---|---|---|
+| POST | `/api/v1/auth/login` | Public | Returns a JWT access token |
+| POST | `/api/v1/documents` | ADMIN | Upload a rules document (multipart), returns `202` |
+| GET | `/api/v1/documents` | ADMIN | List documents and ingestion status, paginated |
+| DELETE | `/api/v1/documents/{id}` | ADMIN | Delete a document and its vectors, returns `204` |
+| POST | `/api/v1/disputes/analyse` | AGENT | Analyse a dispute, returns `201` |
+| GET | `/api/v1/disputes/{id}` | AGENT | Get a stored analysis result |
+
+### Authentication
+
+Log in, then send the token in the `Authorization` header:
+
+```http
+POST /api/v1/auth/login
+Content-Type: application/json
+
+{ "username": "agent", "password": "<AGENT_PASSWORD>" }
+```
+
+```json
+{ "accessToken": "eyJhbGciOiJIUzI1NiJ9...", "tokenType": "Bearer", "expiresIn": 3600 }
+```
+
+```http
+POST /api/v1/disputes/analyse
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9...
+```
+
+In Swagger UI, call the login endpoint, click **Authorize** and paste the `accessToken`.
 
 Interactive documentation is available at `http://localhost:8080/swagger-ui.html` (OpenAPI JSON at `/v3/api-docs`).
 
@@ -150,6 +182,8 @@ Errors are returned as RFC 9457 `ProblemDetail`, each with a `correlationId` and
 | Status | When |
 |---|---|
 | `400` | Invalid request, malformed JSON or unsupported file type (with field-level `errors`) |
+| `401` | Missing, invalid or expired token, or wrong username or password |
+| `403` | Valid token but the wrong role |
 | `404` | Document or dispute not found |
 | `409` | Deleting a document that is still being ingested |
 | `413` | File larger than 10MB |
@@ -223,10 +257,10 @@ Every response carries an `X-Correlation-Id` header. Send your own value in that
 ### Trying it out
 
 - **Swagger UI:** `http://localhost:8080/swagger-ui.html`
-- **Postman:** import `postman/chargewise-rag.postman_collection.json`. Document and dispute IDs are captured automatically between requests.
+- **Postman:** import `postman/chargewise-rag.postman_collection.json`, set the password variables to match your `.env`, and run the Auth folder first. Tokens and IDs are captured automatically between requests.
 - **IntelliJ HTTP client:** open `requests.http`.
 
-Suggested order: list documents, analyse a few disputes, get a result by ID, then upload and delete a document.
+Suggested order: log in as admin and agent, list documents, analyse a few disputes, get a result by ID, then upload and delete a document.
 
 ## Design decisions
 
@@ -235,6 +269,8 @@ Suggested order: list documents, analyse a few disputes, get a result by ID, the
 - **Context expansion by metadata.** Small chunks give precise matches but can separate a rule's conditions from its evidence list. A second search filtered on `reasonCategory` brings the whole rule into context.
 - **Transactional delete.** Document rows and vector rows are removed in one database transaction, so a failed delete never leaves vectors that can still be retrieved.
 - **Asynchronous ingestion on virtual threads.** Uploads return `202` immediately and parsing and embedding run in the background. The correlation ID is copied to the background thread, so ingestion logs can be traced back to the upload request.
+- **JWT without an extra library.** Tokens are issued and validated with Spring Security's built-in Nimbus support. The issuer and expiry are checked on every request, and roles come from a `roles` claim.
+- **Security errors go through the same handler.** The authentication entry point and access-denied handler delegate to the global exception handler, so `401` and `403` have the same `ProblemDetail` shape and correlation ID as every other error.
 - **Consistent errors.** One `@RestControllerAdvice` turns every error, including Spring's own, into a `ProblemDetail` with a correlation ID. Unexpected errors are logged in full but return no internal details.
 - **Schema owned by Flyway.** Hibernate runs with `ddl-auto: validate`, and the pgvector table and HNSW index are created by migrations rather than at runtime.
 
@@ -248,6 +284,7 @@ src/main/java/com/dj/chargewise/
 │   ├── ingestion/ upload, text extraction, async ingestion, seed data
 │   └── dispute/   retrieval, LLM advisor, analysis
 ├── repository/    JPA repositories and vector chunk deletion
+├── security/      security configuration, JWT issuing, 401/403 handlers
 ├── entity/        JPA entities
 ├── dto/           request and response records
 ├── model/         enums, retrieved chunk, LLM output record
@@ -271,7 +308,6 @@ Tests run against a real pgvector container through Testcontainers, so Docker mu
 
 Phase 2 adds production-ready features:
 
-- JWT login (`POST /api/v1/auth/login`) with ADMIN and AGENT roles
 - Resilience4j retry, circuit breaker and time limiter on OpenAI calls
 - Idempotency-Key support on dispute analysis
 - Rate limiting with Bucket4j
