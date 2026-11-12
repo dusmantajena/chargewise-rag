@@ -91,6 +91,7 @@ sequenceDiagram
 | Document parsing | Apache Tika, TokenTextSplitter |
 | Database | PostgreSQL 17 with pgvector (HNSW index) |
 | Migrations | Flyway |
+| API documentation | springdoc-openapi (Swagger UI) |
 | Testing | JUnit 5, Testcontainers |
 | Containers | Docker Compose |
 
@@ -142,14 +143,18 @@ Retrieval and chunking are tuned in `application.yml` under `chargewise.*`: chun
 | POST | `/api/v1/disputes/analyse` | Analyse a dispute, returns `201` |
 | GET | `/api/v1/disputes/{id}` | Get a stored analysis result |
 
-Errors are returned as RFC 9457 `ProblemDetail`:
+Interactive documentation is available at `http://localhost:8080/swagger-ui.html` (OpenAPI JSON at `/v3/api-docs`).
+
+Errors are returned as RFC 9457 `ProblemDetail`, each with a `correlationId` and `timestamp`:
 
 | Status | When |
 |---|---|
-| `400` | Invalid request or unsupported file type |
+| `400` | Invalid request, malformed JSON or unsupported file type (with field-level `errors`) |
 | `404` | Document or dispute not found |
 | `409` | Deleting a document that is still being ingested |
+| `413` | File larger than 10MB |
 | `422` | No rules match the dispute closely enough, or the rules don't support an answer |
+| `500` | Unexpected error (no internal details exposed) |
 
 ### Example
 
@@ -191,12 +196,33 @@ Refusal `422 Unprocessable Content`:
   "title": "Insufficient context",
   "status": 422,
   "detail": "No rules match this dispute closely enough to make a recommendation.",
-  "instance": "/api/v1/disputes/analyse"
+  "instance": "/api/v1/disputes/analyse",
+  "timestamp": "2026-11-12T09:15:00Z",
+  "correlationId": "3f2b9c1e-7d4a-4c8e-9a51-0b6d2e8f4a17"
 }
 ```
 
+Validation error `400 Bad Request`:
+
+```json
+{
+  "title": "Validation failed",
+  "status": 400,
+  "detail": "One or more fields are invalid.",
+  "instance": "/api/v1/disputes/analyse",
+  "errors": [
+    { "field": "description", "message": "Description is required" }
+  ],
+  "timestamp": "2026-11-12T09:15:00Z",
+  "correlationId": "8a1d4f60-2c3b-4e7f-b9d2-5e6a7c8b9d01"
+}
+```
+
+Every response carries an `X-Correlation-Id` header. Send your own value in that header to trace a request across the logs; otherwise one is generated.
+
 ### Trying it out
 
+- **Swagger UI:** `http://localhost:8080/swagger-ui.html`
 - **Postman:** import `postman/chargewise-rag.postman_collection.json`. Document and dispute IDs are captured automatically between requests.
 - **IntelliJ HTTP client:** open `requests.http`.
 
@@ -208,14 +234,15 @@ Suggested order: list documents, analyse a few disputes, get a result by ID, the
 - **Grounded citations.** Retrieved chunks are labelled `S1`, `S2` and so on, and the model returns labels only. Citations are built from the stored chunks, so every document name and excerpt in a response is real.
 - **Context expansion by metadata.** Small chunks give precise matches but can separate a rule's conditions from its evidence list. A second search filtered on `reasonCategory` brings the whole rule into context.
 - **Transactional delete.** Document rows and vector rows are removed in one database transaction, so a failed delete never leaves vectors that can still be retrieved.
-- **Asynchronous ingestion on virtual threads.** Uploads return `202` immediately and parsing and embedding run in the background.
+- **Asynchronous ingestion on virtual threads.** Uploads return `202` immediately and parsing and embedding run in the background. The correlation ID is copied to the background thread, so ingestion logs can be traced back to the upload request.
+- **Consistent errors.** One `@RestControllerAdvice` turns every error, including Spring's own, into a `ProblemDetail` with a correlation ID. Unexpected errors are logged in full but return no internal details.
 - **Schema owned by Flyway.** Hibernate runs with `ddl-auto: validate`, and the pgvector table and HNSW index are created by migrations rather than at runtime.
 
 ## Project structure
 
 ```
 src/main/java/com/dj/chargewise/
-├── config/        Spring AI, async and application properties
+├── config/        Spring AI, async, OpenAPI and application properties
 ├── controller/    REST controllers
 ├── service/
 │   ├── ingestion/ upload, text extraction, async ingestion, seed data
@@ -225,7 +252,7 @@ src/main/java/com/dj/chargewise/
 ├── dto/           request and response records
 ├── model/         enums, retrieved chunk, LLM output record
 ├── exception/     exception hierarchy and global handler
-└── util/          metadata keys
+└── util/          correlation ID filter, MDC propagation, metadata keys
 src/main/resources/
 ├── db/migration/  Flyway migrations
 ├── prompts/       system and user prompt templates
@@ -245,11 +272,9 @@ Tests run against a real pgvector container through Testcontainers, so Docker mu
 Phase 2 adds production-ready features:
 
 - JWT login (`POST /api/v1/auth/login`) with ADMIN and AGENT roles
-- Field-level validation errors and a correlation ID in every error
 - Resilience4j retry, circuit breaker and time limiter on OpenAI calls
 - Idempotency-Key support on dispute analysis
 - Rate limiting with Bucket4j
 - Micrometer metrics, Prometheus endpoint and structured JSON logs
-- Swagger UI with OpenAPI documentation
 - WireMock-based integration tests, so CI needs no API key
 - Multi-stage Dockerfile and GitHub Actions CI
