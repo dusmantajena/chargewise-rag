@@ -13,7 +13,7 @@
 
     <groupId>com.dj</groupId>
     <artifactId>chargewise-rag</artifactId>
-    <version>0.4.0</version>
+    <version>0.5.0</version>
     <name>chargewise-rag</name>
     <description>AI-powered chargeback and dispute resolution copilot</description>
 
@@ -22,6 +22,7 @@
         <spring-ai.version>2.0.2</spring-ai.version>
         <springdoc.version>3.0.3</springdoc.version>
         <resilience4j.version>2.3.0</resilience4j.version>
+        <bucket4j.version>8.19.0</bucket4j.version>
     </properties>
 
     <dependencyManagement>
@@ -109,6 +110,12 @@
             <groupId>io.github.resilience4j</groupId>
             <artifactId>resilience4j-timelimiter</artifactId>
             <version>${resilience4j.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.bucket4j</groupId>
+            <artifactId>bucket4j_jdk17-core</artifactId>
+            <version>${bucket4j.version}</version>
         </dependency>
 
         <dependency>

@@ -40,6 +40,14 @@
     {
       "key": "disputeId",
       "value": ""
+    },
+    {
+      "key": "idempotencyKey",
+      "value": ""
+    },
+    {
+      "key": "idempotentDisputeId",
+      "value": ""
     }
   ],
   "item": [
@@ -486,6 +494,115 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"description\": \"Customer says the parcel never arrived. The delivery date was three weeks ago and the merchant has not replied to two emails.\"\n}"
+            },
+            "url": "{{baseUrl}}/disputes/analyse"
+          }
+        },
+        {
+          "name": "Idempotency - first call (201)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('idempotencyKey', pm.variables.replaceIn('{{$guid}}'));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Not a replay', () => pm.expect(pm.response.headers.has('Idempotent-Replayed')).to.be.false);",
+                  "pm.collectionVariables.set('idempotentDisputeId', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Customer paid once at the supermarket but was charged the same amount twice, two minutes apart.\"\n}"
+            },
+            "url": "{{baseUrl}}/disputes/analyse"
+          }
+        },
+        {
+          "name": "Idempotency - replay same key (201, replayed)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Marked as replay', () => pm.expect(pm.response.headers.get('Idempotent-Replayed')).to.eql('true'));",
+                  "pm.test('Same dispute returned', () => pm.expect(pm.response.json().id).to.eql(pm.collectionVariables.get('idempotentDisputeId')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Customer paid once at the supermarket but was charged the same amount twice, two minutes apart.\"\n}"
+            },
+            "url": "{{baseUrl}}/disputes/analyse"
+          }
+        },
+        {
+          "name": "Idempotency - same key, different body (409)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 409', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Customer says the jacket delivered is a different colour from the photo.\"\n}"
             },
             "url": "{{baseUrl}}/disputes/analyse"
           }

@@ -8,7 +8,7 @@ import java.util.List;
 
 @ConfigurationProperties(prefix = "chargewise")
 public record ChargewiseProperties(Ingestion ingestion, Retrieval retrieval, Seed seed, Resilience resilience,
-                                   Security security) {
+                                   RateLimit rateLimit, Security security) {
 
     public record Ingestion(int chunkSize, int minChunkSizeChars) {
     }
@@ -22,6 +22,9 @@ public record ChargewiseProperties(Ingestion ingestion, Retrieval retrieval, See
     public record Resilience(Duration timeout, int maxAttempts, Duration initialBackoff,
                              float failureRateThreshold, int slidingWindowSize, int minimumNumberOfCalls,
                              Duration openStateDuration) {
+    }
+
+    public record RateLimit(int capacity, Duration period) {
     }
 
     public record Security(String jwtSecret, Duration tokenTtl, List<User> users) {
