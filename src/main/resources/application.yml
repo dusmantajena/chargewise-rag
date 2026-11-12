@@ -45,6 +45,14 @@ chargewise:
     category-context-top-k: 10
   seed:
     enabled: ${SEED_ENABLED:true}
+  resilience:
+    timeout: 30s
+    max-attempts: 3
+    initial-backoff: 1s
+    failure-rate-threshold: 50
+    sliding-window-size: 10
+    minimum-number-of-calls: 5
+    open-state-duration: 30s
   security:
     jwt-secret: ${JWT_SECRET}
     token-ttl: 1h

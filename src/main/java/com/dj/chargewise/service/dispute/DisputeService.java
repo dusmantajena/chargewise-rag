@@ -9,6 +9,7 @@ import com.dj.chargewise.exception.ResourceNotFoundException;
 import com.dj.chargewise.model.DisputeRecommendation;
 import com.dj.chargewise.model.RetrievedChunk;
 import com.dj.chargewise.repository.DisputeRepository;
+import com.dj.chargewise.service.OpenAiResilience;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -36,23 +37,26 @@ public class DisputeService {
     private final RuleRetriever retriever;
     private final DisputeAdvisor advisor;
     private final DisputeRepository disputeRepository;
+    private final OpenAiResilience openAiResilience;
 
-    public DisputeService(RuleRetriever retriever, DisputeAdvisor advisor, DisputeRepository disputeRepository) {
+    public DisputeService(RuleRetriever retriever, DisputeAdvisor advisor, DisputeRepository disputeRepository,
+                          OpenAiResilience openAiResilience) {
         this.retriever = retriever;
         this.advisor = advisor;
         this.disputeRepository = disputeRepository;
+        this.openAiResilience = openAiResilience;
     }
 
     public DisputeResponse analyse(AnalyseDisputeRequest request) {
         String description = request.description().strip();
 
-        List<RetrievedChunk> chunks = retriever.retrieve(description);
+        List<RetrievedChunk> chunks = openAiResilience.call(() -> retriever.retrieve(description));
         if (chunks.isEmpty()) {
             throw new InsufficientContextException(NO_MATCHING_RULES);
         }
 
         Map<String, RetrievedChunk> sources = labelSources(chunks);
-        DisputeRecommendation recommendation = advisor.advise(description, sources);
+        DisputeRecommendation recommendation = openAiResilience.call(() -> advisor.advise(description, sources));
         if (recommendation == null || !recommendation.supported() || recommendation.category() == null) {
             throw new InsufficientContextException(declineReason(recommendation));
         }

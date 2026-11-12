@@ -46,6 +46,8 @@ public class DisputeController {
             content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
     @ApiResponse(responseCode = "422", description = "The rules don't support an answer for this dispute",
             content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
+    @ApiResponse(responseCode = "503", description = "The AI service is unavailable or timed out; see Retry-After",
+            content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
     public ResponseEntity<DisputeResponse> analyse(@Valid @RequestBody AnalyseDisputeRequest request) {
         DisputeResponse response = disputeService.analyse(request);
         URI location = ServletUriComponentsBuilder.fromCurrentContextPath()
