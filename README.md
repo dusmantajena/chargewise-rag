@@ -1,5 +1,10 @@
 # Chargewise RAG
 
+[![CI](https://github.com/dusmantajena/chargewise-rag/actions/workflows/ci.yml/badge.svg)](https://github.com/dusmantajena/chargewise-rag/actions/workflows/ci.yml)
+![Java 25](https://img.shields.io/badge/Java-25-orange)
+![Spring Boot 4](https://img.shields.io/badge/Spring%20Boot-4.1-brightgreen)
+![Spring AI 2](https://img.shields.io/badge/Spring%20AI-2.0-blue)
+
 AI-powered chargeback and dispute resolution copilot built with Spring AI. Given a dispute description, it recommends the dispute category and the evidence the issuer must provide, cites the scheme rules it relied on, and refuses with `422` when the rules don't support an answer.
 
 All card schemes and rules in this project are fictional.
@@ -111,7 +116,7 @@ sequenceDiagram
 | Migrations | Flyway |
 | API documentation | springdoc-openapi (Swagger UI) |
 | Testing | JUnit 5, Mockito, Testcontainers, WireMock, JaCoCo |
-| Containers | Docker Compose |
+| Containers and CI | Docker (multi-stage, layered jar), Docker Compose, GitHub Actions |
 
 ## Getting started
 
@@ -122,18 +127,27 @@ sequenceDiagram
 - Docker
 - An OpenAI API key
 
-### Run
+### Run everything with Docker
 
 ```bash
-cp .env.example .env        # set OPENAI_API_KEY
-docker compose up -d
-mvn spring-boot:run
+cp .env.example .env        # set OPENAI_API_KEY, JWT_SECRET and the two passwords
+docker compose up -d --build
 ```
 
-The application starts on `http://localhost:8080`, applies the Flyway migrations and ingests the seed rules. Check it with:
+This builds the application image and starts it with PostgreSQL. The API is on `http://localhost:8080`, Flyway applies the migrations and the seed rules are ingested on first start.
 
 ```bash
 curl http://localhost:8080/actuator/health
+docker compose logs -f app
+```
+
+### Run from the IDE
+
+Start only the database, then run the application with Maven or from your IDE:
+
+```bash
+docker compose up -d postgres
+mvn spring-boot:run
 ```
 
 ### Configuration
@@ -299,6 +313,7 @@ Suggested order: log in as admin and agent, list documents, analyse a few disput
 - **Resilience4j core instead of a starter.** There is no Resilience4j starter for Spring Boot 4 yet, so the retry, circuit breaker and time limiter are built as beans and composed in one `OpenAiResilience` component. Retry wraps the circuit breaker, which wraps the time limiter, so each attempt is timed and counted. Business errors such as `422` are never retried and never open the circuit.
 - **Idempotency claimed atomically in the database.** The key is claimed with one `INSERT ... ON CONFLICT` before the OpenAI call, so two concurrent requests with the same key cannot both run. The request body is stored as a SHA-256 hash to detect a key reused with different content. If the analysis fails, the claim is released so the client can retry; a claim left behind by a crash expires after 5 minutes.
 - **Rate limit after authentication.** The Bucket4j check runs as a Spring MVC interceptor, after the JWT filter, so limits are per user rather than per IP. Buckets are kept in memory, which suits a single instance; several instances would share buckets through Bucket4j's Redis or PostgreSQL integration.
+- **Small, non-root runtime image.** The Dockerfile builds with Maven, then copies Spring Boot's extracted layers into a JRE-only image, so dependency layers are cached between builds and the app runs as an unprivileged user.
 - **Tests need no API key.** WireMock stands in for the OpenAI chat API and a fixed embedding model replaces OpenAI embeddings, so the full suite runs offline in CI while still going through the real HTTP client, Spring Security and PostgreSQL.
 - **JWT without an extra library.** Tokens are issued and validated with Spring Security's built-in Nimbus support. The issuer and expiry are checked on every request, and roles come from a `roles` claim.
 - **Security errors go through the same handler.** The authentication entry point and access-denied handler delegate to the global exception handler, so `401` and `403` have the same `ProblemDetail` shape and correlation ID as every other error.
@@ -321,6 +336,10 @@ src/main/java/com/dj/chargewise/
 ├── model/         enums, retrieved chunk, LLM output record
 ├── exception/     exception hierarchy and global handler
 └── util/          correlation ID filter, MDC propagation, metadata keys
+src/test/java/com/dj/chargewise/
+├── integration/   API integration tests
+├── support/       Testcontainers, WireMock and embedding test setup
+└── ...            unit tests next to the classes they cover
 src/main/resources/
 ├── db/migration/  Flyway migrations
 ├── prompts/       system and user prompt templates
@@ -333,7 +352,9 @@ src/main/resources/
 mvn verify
 ```
 
-This runs every test and writes a JaCoCo coverage report to `target/site/jacoco/index.html`. Docker must be running; no OpenAI API key is needed.
+This runs every test, writes a JaCoCo coverage report to `target/site/jacoco/index.html` and fails the build if instruction coverage drops below 85%. Docker must be running; no OpenAI API key is needed.
+
+GitHub Actions runs the same build on every push and pull request to `main`, uploads the coverage report and builds the Docker image.
 
 | Level | What is tested | Tools |
 |---|---|---|
@@ -341,3 +362,7 @@ This runs every test and writes a JaCoCo coverage report to `target/site/jacoco/
 | Integration | The full API over HTTP: login, role checks, upload and transactional delete, seed ingestion, analysis, `422` refusal, idempotent replay and `409`, `503` after retries, validation errors | Spring Boot Test, MockMvc, Testcontainers (pgvector), WireMock |
 
 Integration tests run against a real PostgreSQL with pgvector in a container. The OpenAI chat API is replaced by WireMock over HTTP, so the real client, retries and error mapping are exercised. Embeddings come from a deterministic in-memory model, so similarity scores, and therefore the refusal guard, behave the same on every run.
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for the changes in each release.
