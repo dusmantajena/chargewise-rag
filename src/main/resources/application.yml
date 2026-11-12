@@ -21,9 +21,6 @@ spring:
     multipart:
       max-file-size: 10MB
       max-request-size: 10MB
-  mvc:
-    problemdetails:
-      enabled: true
   ai:
     openai:
       api-key: ${OPENAI_API_KEY}
@@ -51,6 +48,18 @@ chargewise:
 
 server:
   port: 8080
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+
+logging:
+  pattern:
+    correlation: "[%X{correlationId:-}] "
 
 management:
   endpoints:
