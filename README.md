@@ -25,6 +25,11 @@ All card schemes and rules in this project are fictional.
 - When OpenAI is down or slow, the API returns `503` with a `Retry-After` header instead of hanging or failing with a `500`
 - After repeated failures the circuit opens and requests fail fast for 30 seconds without calling OpenAI
 
+**Idempotency and rate limiting**
+- `POST /disputes/analyse` accepts an optional `Idempotency-Key` header. Repeating a key returns the stored result with `Idempotent-Replayed: true`, without a new OpenAI call or a duplicate record
+- Reusing a key with a different request returns `409`; a key whose first request is still running also returns `409`
+- Each user can run 10 analyses per minute (Bucket4j token bucket). Responses carry `X-RateLimit-Limit` and `X-RateLimit-Remaining`; above the limit the API returns `429` with `Retry-After`
+
 **Analyse a dispute**
 - The dispute description is matched against rule chunks with pgvector similarity search
 - Context expansion: once the best-matching category is known, its remaining chunks are fetched with a metadata filter, so the rule's evidence section always reaches the model
@@ -101,6 +106,7 @@ sequenceDiagram
 | Document parsing | Apache Tika, TokenTextSplitter |
 | Security | Spring Security, JWT (Nimbus, HS256), BCrypt |
 | Resilience | Resilience4j (retry, circuit breaker, time limiter) |
+| Rate limiting | Bucket4j |
 | Database | PostgreSQL 17 with pgvector (HNSW index) |
 | Migrations | Flyway |
 | API documentation | springdoc-openapi (Swagger UI) |
@@ -146,7 +152,7 @@ All settings are read from `.env` or environment variables. No secrets are store
 | `ADMIN_PASSWORD` | none | Password for the `admin` user (required) |
 | `AGENT_PASSWORD` | none | Password for the `agent` user (required) |
 
-Retrieval, chunking and resilience are tuned in `application.yml` under `chargewise.*`: chunk size, top-k, similarity threshold, category context size, OpenAI timeout, retry attempts and circuit breaker thresholds.
+Retrieval, chunking, resilience and rate limiting are tuned in `application.yml` under `chargewise.*`: chunk size, top-k, similarity threshold, category context size, OpenAI timeout, retry attempts, circuit breaker thresholds and the rate limit.
 
 ## API
 
@@ -191,9 +197,10 @@ Errors are returned as RFC 9457 `ProblemDetail`, each with a `correlationId` and
 | `401` | Missing, invalid or expired token, or wrong username or password |
 | `403` | Valid token but the wrong role |
 | `404` | Document or dispute not found |
-| `409` | Deleting a document that is still being ingested |
+| `409` | Deleting a document that is still being ingested, or an `Idempotency-Key` conflict |
 | `413` | File larger than 10MB |
 | `422` | No rules match the dispute closely enough, or the rules don't support an answer |
+| `429` | Rate limit exceeded (with a `Retry-After` header) |
 | `500` | Unexpected error (no internal details exposed) |
 | `503` | OpenAI is unavailable, timed out or the circuit is open (with a `Retry-After` header) |
 
@@ -259,12 +266,25 @@ Validation error `400 Bad Request`:
 }
 ```
 
+### Safe retries with Idempotency-Key
+
+```http
+POST /api/v1/disputes/analyse
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9...
+Idempotency-Key: 3f2b9c1e-7d4a-4c8e-9a51-0b6d2e8f4a17
+Content-Type: application/json
+
+{ "description": "Customer paid once at the supermarket but was charged the same amount twice, two minutes apart." }
+```
+
+If the client times out and sends the same request again with the same key, it gets the original result back with `Idempotent-Replayed: true`. No second analysis runs and no duplicate dispute is stored.
+
 Every response carries an `X-Correlation-Id` header. Send your own value in that header to trace a request across the logs; otherwise one is generated.
 
 ### Trying it out
 
 - **Swagger UI:** `http://localhost:8080/swagger-ui.html`
-- **Postman:** import `postman/chargewise-rag.postman_collection.json`, set the password variables to match your `.env`, and run the Auth folder first. Tokens and IDs are captured automatically between requests.
+- **Postman:** import `postman/chargewise-rag.postman_collection.json`, set the password variables to match your `.env`, and run the Auth folder first. Tokens, IDs and idempotency keys are captured automatically between requests.
 - **IntelliJ HTTP client:** open `requests.http`.
 
 Suggested order: log in as admin and agent, list documents, analyse a few disputes, get a result by ID, then upload and delete a document.
@@ -277,6 +297,8 @@ Suggested order: log in as admin and agent, list documents, analyse a few disput
 - **Transactional delete.** Document rows and vector rows are removed in one database transaction, so a failed delete never leaves vectors that can still be retrieved.
 - **Asynchronous ingestion on virtual threads.** Uploads return `202` immediately and parsing and embedding run in the background. The correlation ID is copied to the background thread, so ingestion logs can be traced back to the upload request.
 - **Resilience4j core instead of a starter.** There is no Resilience4j starter for Spring Boot 4 yet, so the retry, circuit breaker and time limiter are built as beans and composed in one `OpenAiResilience` component. Retry wraps the circuit breaker, which wraps the time limiter, so each attempt is timed and counted. Business errors such as `422` are never retried and never open the circuit.
+- **Idempotency claimed atomically in the database.** The key is claimed with one `INSERT ... ON CONFLICT` before the OpenAI call, so two concurrent requests with the same key cannot both run. The request body is stored as a SHA-256 hash to detect a key reused with different content. If the analysis fails, the claim is released so the client can retry; a claim left behind by a crash expires after 5 minutes.
+- **Rate limit after authentication.** The Bucket4j check runs as a Spring MVC interceptor, after the JWT filter, so limits are per user rather than per IP. Buckets are kept in memory, which suits a single instance; several instances would share buckets through Bucket4j's Redis or PostgreSQL integration.
 - **JWT without an extra library.** Tokens are issued and validated with Spring Security's built-in Nimbus support. The issuer and expiry are checked on every request, and roles come from a `roles` claim.
 - **Security errors go through the same handler.** The authentication entry point and access-denied handler delegate to the global exception handler, so `401` and `403` have the same `ProblemDetail` shape and correlation ID as every other error.
 - **Consistent errors.** One `@RestControllerAdvice` turns every error, including Spring's own, into a `ProblemDetail` with a correlation ID. Unexpected errors are logged in full but return no internal details.
@@ -286,13 +308,13 @@ Suggested order: log in as admin and agent, list documents, analyse a few disput
 
 ```
 src/main/java/com/dj/chargewise/
-├── config/        Spring AI, async, OpenAPI, Resilience4j and application properties
+├── config/        Spring AI, async, OpenAPI, Resilience4j, web and application properties
 ├── controller/    REST controllers
 ├── service/       OpenAI resilience wrapper
 │   ├── ingestion/ upload, text extraction, async ingestion, seed data
-│   └── dispute/   retrieval, LLM advisor, analysis
-├── repository/    JPA repositories and vector chunk deletion
-├── security/      security configuration, JWT issuing, 401/403 handlers
+│   └── dispute/   retrieval, LLM advisor, analysis, idempotency
+├── repository/    JPA repositories, vector chunk deletion, idempotency keys
+├── security/      security configuration, JWT issuing, 401/403 handlers, rate limiting
 ├── entity/        JPA entities
 ├── dto/           request and response records
 ├── model/         enums, retrieved chunk, LLM output record

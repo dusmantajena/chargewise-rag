@@ -53,6 +53,9 @@ chargewise:
     sliding-window-size: 10
     minimum-number-of-calls: 5
     open-state-duration: 30s
+  rate-limit:
+    capacity: 10
+    period: 1m
   security:
     jwt-secret: ${JWT_SECRET}
     token-ttl: 1h
